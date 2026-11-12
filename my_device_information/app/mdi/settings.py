@@ -275,6 +275,11 @@ def load() -> Runtime:
             "addon_config": Location(
                 "addon_config", "This add-on's config folder", Path("/config")
             ),
+            # Home Assistant's own config folder (what the File editor calls /config).
+            # Inside an add-on it is mounted at /homeassistant.
+            "homeassistant": Location(
+                "homeassistant", "Home Assistant config folder (/config)", Path("/homeassistant")
+            ),
         }
         cfg = Path("/homeassistant")
         rt = Runtime(
@@ -301,6 +306,12 @@ def load() -> Runtime:
         locations = {"output": Location("output", f"Output folder ({output})", output)}
         locations.update(_parse_extra_dirs(os.environ.get("EXTRA_OUTPUT_DIRS", "")))
         cfg = Path(os.environ.get("HA_CONFIG_DIR", "/config"))
+        if cfg.is_dir():
+            # Only works if the config folder is mounted read-write in docker-compose.
+            locations.setdefault(
+                "homeassistant",
+                Location("homeassistant", f"Home Assistant config folder ({cfg})", cfg),
+            )
         rt = Runtime(
             mode="docker",
             options=options,

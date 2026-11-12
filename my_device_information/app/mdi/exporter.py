@@ -23,8 +23,8 @@ from .settings import KINDS, REDACTION_LEVELS, Runtime
 _LOGGER = logging.getLogger(__name__)
 
 RETRY_AFTER_FAILURE = timedelta(minutes=15)
-FILE_LABELS = {"overview": "Overview.md", "full": "Full.md", "json": "Data.json"}
-CONTENT_TYPES = {"overview": "text/markdown", "full": "text/markdown", "json": "application/json"}
+FILE_LABELS = {"overview": "Overview.txt", "full": "Full.txt", "json": "Data.json"}
+CONTENT_TYPES = {"overview": "text/plain", "full": "text/plain", "json": "application/json"}
 
 
 def filename(kind: str, stamp: str | None = None) -> str:

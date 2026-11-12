@@ -27,7 +27,7 @@ from .settings import (
 _LOGGER = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).parent / "static"
 INGRESS_PEERS = {"172.30.32.2", "127.0.0.1", "::1"}
-CT = {"overview": "text/markdown", "full": "text/markdown", "json": "application/json"}
+CT = {"overview": "text/plain", "full": "text/plain", "json": "application/json"}
 
 
 def _status(rt: Runtime, mgr: ExportManager) -> dict[str, Any]:
