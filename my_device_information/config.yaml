@@ -1,5 +1,5 @@
 name: My Device Information
-version: "1.2.0"
+version: "1.2.1"
 slug: my_device_information
 image: ghcr.io/jonathangibson98/{arch}-my-device-information
 description: One click snapshot of your Home Assistant setup, ready to paste into an AI chat
