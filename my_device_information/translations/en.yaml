@@ -35,3 +35,6 @@ configuration:
   auto_refresh_hours:
     name: Refresh automatically every N hours
     description: 0 turns automatic refresh off. Files are rewritten in the background. You can also change this on the add-on page, where it takes effect without a restart.
+  mqtt_sensor:
+    name: Publish Full as an MQTT sensor
+    description: Creates sensor.my_device_information_full. Its state is the time of the last snapshot and the whole Full text is in the "content" attribute. Needs the MQTT integration. You can also switch this on the add-on page.
