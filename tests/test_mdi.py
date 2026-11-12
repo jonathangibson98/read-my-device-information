@@ -28,7 +28,7 @@ if not HAVE_AIOHTTP:
     sys.modules["aiohttp"] = stub
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "my_device_information" / "app"))
 
-from mdi import settings, exporter, collector  # noqa: E402
+from mdi import VERSION, settings, exporter, collector  # noqa: E402
 from mdi.exporter import NoFilesSelected, prune_history  # noqa: E402
 from mdi.redact import Redactor  # noqa: E402
 from mdi.render import render  # noqa: E402
@@ -154,7 +154,7 @@ class CollectorTests(unittest.TestCase):
             text = render(data, kind)
             self.assertIn("My Device Information", text)
         self.assertIn("kitchen", render(data, "full").lower())
-        self.assertEqual(json.loads(render(data, "json"))["meta"]["generator"], "My Device Information 1.1.0")
+        self.assertEqual(json.loads(render(data, "json"))["meta"]["generator"], f"My Device Information {VERSION}")
 
 def make_rt(tmp, **opt):
     base = Path(tmp)
