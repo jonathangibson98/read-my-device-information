@@ -9,7 +9,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: my-device-information:1.0.0
+    image: my-device-information:1.1.0
     container_name: my-device-information
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
@@ -27,6 +27,7 @@ services:
       WEB_PASSWORD: ${WEB_PASSWORD:-}
       SAVE_SUBFOLDER: ${SAVE_SUBFOLDER-my_device_information}
       KEEP_HISTORY: ${KEEP_HISTORY:-false}
+      HISTORY_KEEP: ${HISTORY_KEEP:-20}
       REDACTION: ${REDACTION:-standard}
       INCLUDE_ATTRIBUTES: ${INCLUDE_ATTRIBUTES:-true}
       INCLUDE_CONFIGURATION: ${INCLUDE_CONFIGURATION:-true}
