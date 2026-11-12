@@ -634,5 +634,96 @@ class DockerEnvTests(unittest.TestCase):
         self.assertEqual(rt.options["save_subfolder"], "")
         self.assertTrue(rt.run_once)
 
+class RecordingClient(FakeClient):
+    def __init__(self, fail=False):
+        super().__init__(); self.calls = []; self.fail = fail
+    async def call_service(self, domain, service, data):
+        if self.fail:
+            raise exporter.HAError("mqtt.publish returned HTTP 400")
+        self.calls.append((domain, service, data))
+
+def fresh_mqtt(tmp, **opt):
+    rt = make_rt3(tmp, save_location="share", **opt)
+    client = RecordingClient()
+    exporter.HAClient = lambda *a, **k: client
+    return rt, exporter.ExportManager(rt), client
+
+class MqttSensorTests(unittest.TestCase):
+    def test_off_by_default_publishes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp)
+            info = run(mgr.generate())
+            self.assertEqual(client.calls, [])
+            self.assertIsNone(info["mqtt"])
+
+    def test_publishes_full_text_as_content_attribute(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            info = run(mgr.generate())
+            full_text = (rt.output_dir() / FU).read_text(encoding="utf-8")
+            by_topic = {c[2]["topic"]: c[2] for c in client.calls}
+            self.assertTrue(all(c[:2] == ("mqtt", "publish") and c[2]["retain"] for c in client.calls))
+            cfg = json.loads(by_topic["homeassistant/sensor/my_device_information/full/config"]["payload"])
+            self.assertEqual(cfg["unique_id"], "my_device_information_full")
+            self.assertEqual(cfg["json_attributes_topic"], "my_device_information/full/attributes")
+            attrs = json.loads(by_topic["my_device_information/full/attributes"]["payload"])
+            self.assertEqual(attrs["content"], full_text)  # everything in Full.txt, unchanged
+            self.assertEqual(by_topic["my_device_information/full/state"]["payload"], info["generated_at"])
+            self.assertEqual(info["mqtt"]["entity_id"], "sensor.my_device_information_full")
+
+    def test_uses_the_masked_text_not_a_fresh_unmasked_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True, redaction="strict")
+            run(mgr.generate())
+            attrs = [json.loads(c[2]["payload"]) for c in client.calls if c[2]["topic"].endswith("/attributes")][0]
+            self.assertNotIn("SECRETSECRET", attrs["content"])
+            self.assertEqual(attrs["masking"], "strict")
+
+    def test_web_choice_beats_the_add_on_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            rt.save_prefs({"mqtt": {"enabled": False}})
+            run(mgr.generate())
+            self.assertEqual(client.calls, [])
+
+    def test_turning_it_off_removes_the_sensor_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            run(mgr.generate()); client.calls.clear()
+            rt.save_prefs({"mqtt": {"enabled": False}})
+            info = run(mgr.generate())
+            self.assertEqual([c[2]["payload"] for c in client.calls], ["", "", ""])
+            self.assertIn("config", client.calls[0][2]["topic"])
+            self.assertIsNone(info["mqtt"])
+            client.calls.clear(); run(mgr.generate())
+            self.assertEqual(client.calls, [])  # nothing left to remove
+
+    def test_needs_the_full_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            rt.save_prefs({"files": {"full": {"enabled": False}}})
+            info = run(mgr.generate())
+            self.assertEqual(client.calls, [])
+            self.assertTrue(any("Full" in e for e in info["errors"]))
+
+    def test_a_broker_problem_does_not_break_the_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            client.fail = True
+            info = run(mgr.generate())
+            self.assertTrue((rt.output_dir() / FU).exists())
+            self.assertTrue(any("MQTT sensor failed" in e and "MQTT integration" in e for e in info["errors"]))
+            self.assertIsNone(info["mqtt"])
+
+    def test_home_assistant_config_folder_is_a_save_location(self):
+        old = dict(os.environ)
+        try:
+            os.environ.update({"MDI_MODE": "addon"})
+            rt = settings.load()
+        finally:
+            os.environ.clear(); os.environ.update(old)
+        self.assertIn("homeassistant", rt.locations)
+        self.assertEqual(rt.locations["homeassistant"].path, Path("/homeassistant"))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
