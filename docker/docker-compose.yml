@@ -9,7 +9,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: my-device-information:1.1.0
+    image: read-my-device-information:latest
     container_name: my-device-information
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
