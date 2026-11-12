@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Device Information</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#185aa8">
+<style>
+:root{color-scheme:light dark;--bg:#f4f6fa;--card:#fff;--text:#1b2433;--muted:#5d6b82;--line:#dde3ee;--accent:#185aa8;--accent-text:#fff;--warn:#9a5b00;--warn-bg:#fff4dc;--bad:#b3261e;--good:#1c7c3b}
+@media (prefers-color-scheme:dark){:root{--bg:#10151d;--card:#18202c;--text:#e6ebf4;--muted:#9aa8bf;--line:#2a3547;--accent:#5aa9f0;--accent-text:#0b1220;--warn:#ffcf70;--warn-bg:#3a2d10;--bad:#ff8a80;--good:#6fd18a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+main{max-width:760px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;gap:12px;margin:8px 0 16px}
+header img{width:44px;height:44px;border-radius:10px}
+h1{font-size:1.35rem;margin:0;line-height:1.2}
+header small{color:var(--muted)}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:1.02rem;margin:0 0 10px}
+p{margin:.4em 0}
+.muted{color:var(--muted);font-size:.9rem}
+label{display:block;font-size:.88rem;color:var(--muted);margin:10px 0 4px}
+select,input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.check{display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--text);font-size:.95rem}
+button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-text);border-color:transparent;font-weight:600}
+button:disabled{opacity:.55;cursor:default}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 6px;word-break:break-all;font-size:.88em}
+.file{border-top:1px solid var(--line);padding:12px 0}
+.file:first-of-type{border-top:0}
+.file b{display:block}
+.notice{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:.92rem}
+.err{color:var(--bad)}
+.ok{color:var(--good)}
+ul.notes{margin:.4em 0 0 1.1em;padding:0;font-size:.88rem;color:var(--muted)}
+dialog{width:min(920px,96vw);max-height:88vh;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--text);padding:0}
+dialog::backdrop{background:#0008}
+dialog .bar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+dialog pre{margin:0;padding:14px;overflow:auto;max-height:72vh;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="assets/icon.svg" alt="">
+    <div><h1>My Device Information</h1><small id="ver"></small></div>
+  </header>
+
+  <section id="make">
+    <h2>Create a snapshot</h2>
+    <p class="muted">Collects your Home Assistant setup into files you can paste into any AI chat. Nothing is uploaded anywhere.</p>
+    <label for="redaction">Privacy masking</label>
+    <select id="redaction">
+      <option value="">Use the default</option>
+      <option value="standard">Standard: mask passwords, tokens, emails, MACs, coordinates</option>
+      <option value="strict">Strict: also mask IPs, hostnames, serials, person names</option>
+      <option value="none">None: share everything (private setups only)</option>
+    </select>
+    <div class="row"><button class="primary" id="go">Create snapshot</button><span id="msg" class="muted"></span></div>
+    <div id="nonenote" class="notice" hidden>Masking is off. The files may contain secrets from your YAML files.</div>
+  </section>
+
+  <section id="where">
+    <h2>Where the files are saved</h2>
+    <label for="loc">Location</label>
+    <select id="loc"></select>
+    <label for="sub">Sub-folder (optional)</label>
+    <input type="text" id="sub" autocomplete="off" spellcheck="false" placeholder="my_device_information">
+    <label class="check"><input type="checkbox" id="hist"> Also keep a dated copy of every run in a <code>history</code> folder</label>
+    <p class="muted" id="path"></p>
+    <div class="row"><button id="savechoice">Save this choice</button><button id="resetchoice" hidden>Back to default</button><span id="locmsg" class="muted"></span></div>
+    <p class="muted" style="margin-top:12px">Want a copy somewhere else, like your computer or phone? Use <b>Save as…</b> on a file below and pick any folder.</p>
+  </section>
+
+  <section id="files" hidden>
+    <h2>Your files</h2>
+    <p class="muted" id="stamp"></p>
+    <div id="list"></div>
+    <ul class="notes" id="errors"></ul>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div class="bar"><b id="dlgtitle"></b><span><button id="dlgcopy">Copy</button> <button id="dlgclose">Close</button></span></div>
+  <pre id="dlgtext"></pre>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const HDR = {"X-MDI": "1", "Content-Type": "application/json"};
+const LABELS = {overview: ["Overview", "Start here. A few thousand tokens, no per-entity detail."],
+                full: ["Full", "Every device, entity and config file."],
+                json: ["Data (JSON)", "Everything as structured data, for tools and scripts."]};
+let st = null;
+
+function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 2600); }
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method: "POST", headers: HDR, body: JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  let data = null; try { data = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((data && data.error) || ("Request failed (" + r.status + ")"));
+  return data;
+}
+function fmt(n) { return Number(n).toLocaleString(); }
+function kb(b) { return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + " KB" : (b / 1048576).toFixed(1) + " MB"; }
+
+function render(s) {
+  st = s;
+  $("ver").textContent = "Version " + s.version + (s.mode === "addon" ? "" : " · Docker");
+  const dr = document.querySelector("#redaction option[value='']");
+  dr.textContent = "Use the default (" + s.options.redaction + ")";
+  const loc = $("loc"); loc.innerHTML = "";
+  s.locations.forEach((l) => { const o = document.createElement("option"); o.value = l.id; o.textContent = l.label + (l.writable ? "" : " (not writable)"); o.disabled = !l.writable; loc.appendChild(o); });
+  loc.value = s.selected.location;
+  $("sub").value = s.selected.subfolder;
+  $("hist").checked = s.selected.keep_history;
+  $("path").innerHTML = s.folder ? "Files go to <code></code>" : "";
+  if (s.folder) $("path").querySelector("code").textContent = s.folder;
+  $("resetchoice").hidden = !s.has_saved_choice;
+  renderFiles(s);
+}
+function renderFiles(s) {
+  const l = s.latest; $("files").hidden = !l; if (!l) return;
+  $("stamp").textContent = "Created " + new Date(l.generated_at).toLocaleString() + " · masking: " + l.redaction + " · saved in " + l.folder;
+  const list = $("list"); list.innerHTML = "";
+  ["overview", "full", "json"].forEach((k) => {
+    const f = l.files[k]; if (!f) return;
+    const d = document.createElement("div"); d.className = "file";
+    d.innerHTML = "<b></b><span class='muted'></span><div class='row'></div>";
+    d.querySelector("b").textContent = LABELS[k][0];
+    d.querySelector("span").textContent = LABELS[k][1] + " ~" + fmt(f.tokens) + " tokens, " + kb(f.bytes) + ".";
+    const row = d.querySelector(".row");
+    [["View", () => view(k)], ["Copy", () => copy(k)], ["Download", () => download(k)], ["Save as…", () => saveAs(k)]].forEach(([t, fn]) => {
+      const b = document.createElement("button"); b.textContent = t; b.onclick = () => fn().catch((e) => toast(e.message)); row.appendChild(b);
+    });
+    list.appendChild(d);
+  });
+  const errs = $("errors"); errs.innerHTML = "";
+  (l.errors || []).forEach((e) => { const li = document.createElement("li"); li.textContent = e; errs.appendChild(li); });
+}
+async function text(kind) { const r = await fetch("api/file/" + kind); if (!r.ok) { let m = "Could not read the file"; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); } return r.text(); }
+async function view(k) { $("dlgtitle").textContent = LABELS[k][0]; $("dlgtext").textContent = await text(k); $("dlg").dataset.kind = k; $("dlg").showModal(); }
+async function copy(k) { const t = await text(k); try { await navigator.clipboard.writeText(t); toast("Copied. Paste it into your AI chat."); } catch (e) { await view(k); toast("Select all in the window and copy."); } }
+function download(k) { const a = document.createElement("a"); a.href = "api/file/" + k + "?download=1"; a.download = ""; document.body.appendChild(a); a.click(); a.remove(); return Promise.resolve(); }
+async function saveAs(k) {
+  const name = st.latest.files[k].name, t = await text(k);
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await window.showSaveFilePicker({suggestedName: name});
+      const w = await h.createWritable(); await w.write(t); await w.close(); toast("Saved " + h.name); return;
+    } catch (e) { if (e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([t], {type: "text/plain"})); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Your browser will ask where to keep it, or uses its download folder.");
+}
+
+$("go").onclick = async () => {
+  const b = $("go"); b.disabled = true; $("msg").className = "muted"; $("msg").textContent = "Working… this can take a minute on large setups.";
+  try { render(await api("api/generate", {redaction: $("redaction").value || undefined})); $("msg").className = "ok"; $("msg").textContent = "Done."; $("files").scrollIntoView({behavior: "smooth"}); }
+  catch (e) { $("msg").className = "err"; $("msg").textContent = e.message; }
+  b.disabled = false;
+};
+$("redaction").onchange = () => { const v = $("redaction").value || (st && st.options.redaction); $("nonenote").hidden = v !== "none"; };
+$("savechoice").onclick = async () => {
+  try { render(await api("api/location", {location: $("loc").value, subfolder: $("sub").value, keep_history: $("hist").checked})); $("locmsg").className = "ok"; $("locmsg").textContent = "Saved."; }
+  catch (e) { $("locmsg").className = "err"; $("locmsg").textContent = e.message; }
+};
+$("resetchoice").onclick = async () => { try { render(await api("api/location/reset", {})); $("locmsg").className = "ok"; $("locmsg").textContent = "Back to the default."; } catch (e) { $("locmsg").className = "err"; $("locmsg").textContent = e.message; } };
+$("dlgclose").onclick = () => $("dlg").close();
+$("dlgcopy").onclick = () => copy($("dlg").dataset.kind).catch((e) => toast(e.message));
+
+api("api/status").then(render).catch((e) => { $("msg").className = "err"; $("msg").textContent = e.message; });
+</script>
+</body>
+</html>
