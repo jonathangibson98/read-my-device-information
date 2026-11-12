@@ -1,5 +1,5 @@
 name: My Device Information
-version: "1.1.0"
+version: "1.1.2"
 slug: my_device_information
 description: One click snapshot of your Home Assistant setup, ready to paste into an AI chat
 url: https://github.com/your-name/ha-my-device-information
