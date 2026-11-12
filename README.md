@@ -19,7 +19,7 @@ Two ways to run it, same code, same web page:
 System, host and every add-on (add-on mode), integrations and custom components, health
 (repairs, updates, unavailable entities, low batteries, grouped log errors), areas, devices,
 entities, automations, scripts, scenes, helpers, dashboards, and your YAML configuration.
-Three editions are written each run:
+Up to three editions are written each run (you choose which, and the masking for each):
 
 - **Overview.md**: start here, a few thousand tokens.
 - **Full.md**: every device, entity and config file.
@@ -31,9 +31,21 @@ Three editions are written each run:
   press *Save this choice*. It is remembered across restarts.
 - **Save as…** on any file opens your browser's save dialog so you can put a copy anywhere on
   the device you are browsing from.
+- **Second place:** tick *Also save a copy* on any file to write it to another location too.
 - **Add-on:** the default location is also a setting on the Configuration tab.
 - **Docker:** the folder is whatever you mount to `/output` (`OUTPUT_PATH` in `.env`). Mount
   more folders and list them in `EXTRA_OUTPUT_DIRS` to choose between them on the page.
+
+## Choosing files, masking, updates and history
+
+All on the web page, nothing to edit in files:
+
+- **Which files, and the masking of each** (default, standard, strict or none).
+- **Automatic updates:** off, or every 1 hour up to every week, applied immediately.
+- **History:** keep dated copies and choose how many to keep per file (0 = all).
+
+In Docker the same defaults come from `AUTO_REFRESH_HOURS`, `KEEP_HISTORY`, `HISTORY_KEEP` and
+`REDACTION` in `.env`; what you pick on the page is remembered and wins over them.
 
 ## Install as a Home Assistant add-on
 
@@ -87,5 +99,5 @@ you paste it anywhere you don't fully trust.
 repository.yaml
 my_device_information/    add-on (config.yaml, Dockerfile, icon.png, logo.png, translations, app/)
 docker/                   Dockerfile, docker-compose.yml, .env.example
-tests/                    offline tests:  python3 tests/test_mdi.py
+tests/                    tests:  python3 tests/test_mdi.py  (web tests run when aiohttp is installed)
 ```
