@@ -105,8 +105,11 @@ Notes:
   so it needs no broker password. The sensor is created with MQTT discovery and is retained, so it
   survives restarts.
 - The Full file must be switched on. The sensor is refreshed on every snapshot, including automatic ones.
-- The attribute can be large. Home Assistant does not store attributes over 16 KB in its history
-  database (it logs a warning). To avoid the warning, exclude the sensor from the recorder:
+- The add-on does not limit the size of `content`: the sensor always gets the complete text.
+  The 16,384 byte limit you may see in the log comes from Home Assistant's history database, which
+  refuses to store attributes that big. It does not affect the live sensor, templates or
+  automations. To stop the warning, exclude the sensor from the recorder (merge into an existing
+  `recorder:` section, then restart Home Assistant):
 
   ```yaml
   recorder:
@@ -115,5 +118,7 @@ Notes:
         - sensor.my_device_information_full
   ```
 
+- Some MQTT brokers have their own maximum message size. If a huge Full file does not arrive,
+  raise that limit in the broker's settings.
 - Check the real entity ID in Developer tools > States if you renamed it.
 - Turning the option off removes the sensor from Home Assistant on the next snapshot.

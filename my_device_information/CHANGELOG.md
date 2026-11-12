@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+- MQTT sensor: the add-on never shortens the text, whatever its size (now covered by a test with
+  a multi-megabyte Full file). The 16 KB limit people hit is Home Assistant's history database, not
+  the sensor. The page now shows the one-time `recorder: exclude` snippet that stops its warning.
+
 ## 1.2.0
 - **Saved as .txt.** Overview and Full are now written as `.txt` files instead of `.md`
   (the content is the same). Data stays `.json`. Older `.md` files are not deleted.
