@@ -6,6 +6,10 @@
 - **Save to your Home Assistant config folder.** New location *Home Assistant config folder
   (/config)* (`/homeassistant` inside the add-on). Pick it, then type any sub-folder to choose the
   exact path. The config mount is now read-write so the add-on can save there.
+- **MQTT sensor.** Optional. Publishes the whole Full text as the `content` attribute of
+  `sensor.my_device_information_full` (state = time of the last snapshot). Switch it on from the
+  add-on page (*MQTT sensor*) or with the new `mqtt_sensor` option. Turning it off removes the sensor
+  on the next snapshot.
 
 ## 1.1.0
 - **Choose your files.** Switch Overview, Full and Data (JSON) on or off, each with its own

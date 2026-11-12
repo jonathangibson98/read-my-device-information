@@ -87,3 +87,33 @@ based, so skim the overview before pasting it anywhere you don't fully trust.
   Overview names anything that could not be collected.
 - **Log section empty:** Home Assistant OS may not keep `home-assistant.log`; the add-on then
   asks Home Assistant for the log, which can be unavailable on some setups.
+
+## MQTT sensor
+
+Turn on **Publish Full as an MQTT sensor** (add-on page, section *MQTT sensor*, or the
+`mqtt_sensor` option) and press **Create snapshot**. You get `sensor.my_device_information_full`:
+
+- **State:** the time of the last snapshot.
+- **Attribute `content`:** the complete text of the Full file, with the same masking as that file.
+- Other attributes: `generated_at`, `bytes`, `tokens`, `masking`, `file`.
+
+Read it in a template with `{{ state_attr('sensor.my_device_information_full', 'content') }}`.
+
+Notes:
+
+- Needs the MQTT integration set up in Home Assistant. The add-on publishes through Home Assistant,
+  so it needs no broker password. The sensor is created with MQTT discovery and is retained, so it
+  survives restarts.
+- The Full file must be switched on. The sensor is refreshed on every snapshot, including automatic ones.
+- The attribute can be large. Home Assistant does not store attributes over 16 KB in its history
+  database (it logs a warning). To avoid the warning, exclude the sensor from the recorder:
+
+  ```yaml
+  recorder:
+    exclude:
+      entities:
+        - sensor.my_device_information_full
+  ```
+
+- Check the real entity ID in Developer tools > States if you renamed it.
+- Turning the option off removes the sensor from Home Assistant on the next snapshot.
