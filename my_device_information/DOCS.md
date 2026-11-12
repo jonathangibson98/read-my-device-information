@@ -32,6 +32,7 @@ Under **Where the files are saved** pick a location and an optional sub-folder, 
 |---|---|---|
 | Share folder | `/share/<sub-folder>` | Samba share "share", File editor, SSH |
 | Media folder | `/media/<sub-folder>` | Samba share "media", Media browser |
+| Home Assistant config folder | `/config/<sub-folder>` (File editor) | File editor, Studio Code Server, Samba share "config" |
 | This add-on's config folder | `/addon_configs/<id>_my_device_information/<sub-folder>` | SSH, Studio Code Server (with add-on config access) |
 
 Your choice overrides the defaults on the Configuration tab until you press **Back to default**.

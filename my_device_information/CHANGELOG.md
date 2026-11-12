@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+- **Saved as .txt.** Overview and Full are now written as `.txt` files instead of `.md`
+  (the content is the same). Data stays `.json`. Older `.md` files are not deleted.
+- **Save to your Home Assistant config folder.** New location *Home Assistant config folder
+  (/config)* (`/homeassistant` inside the add-on). Pick it, then type any sub-folder to choose the
+  exact path. The config mount is now read-write so the add-on can save there.
+
 ## 1.1.0
 - **Choose your files.** Switch Overview, Full and Data (JSON) on or off, each with its own
   masking (default, standard, strict or none).
