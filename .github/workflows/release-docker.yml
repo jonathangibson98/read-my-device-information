@@ -1,6 +1,7 @@
-name: Publish Docker image
+name: Publish images
 
-# Runs when you push a tag such as v1.0.0
+# Runs when you push a tag such as v1.1.0. The tag must match the version in
+# my_device_information/config.yaml and app/mdi/__init__.py (the first job checks).
 on:
   push:
     tags: ["v*"]
@@ -10,7 +11,26 @@ permissions:
   packages: write
 
 jobs:
-  publish:
+  check:
+    name: Tag matches the code version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag, config.yaml and __init__.py
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cfg=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' my_device_information/config.yaml)
+          code=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' my_device_information/app/mdi/__init__.py)
+          echo "tag=$tag config.yaml=$cfg __init__.py=$code"
+          if [ "$tag" != "$cfg" ] || [ "$tag" != "$code" ]; then
+            echo "::error::Version mismatch. Bump both files to $tag (or fix the tag) and push again."
+            exit 1
+          fi
+
+  # Ubuntu / any x86 box, and a Raspberry Pi running Docker (64-bit OS).
+  docker:
+    name: Docker image (amd64 + arm64)
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,3 +56,45 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  # Raspberry Pi (or anything) running Home Assistant OS. Supervisor replaces {arch}
+  # in the add-on's `image:` line with amd64 or aarch64, so one image per arch.
+  addon:
+    name: Add-on image (${{ matrix.arch }})
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: aarch64
+            platform: linux/arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Work out the image name (must be lowercase)
+        id: img
+        env:
+          OWNER: ${{ github.repository_owner }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          owner=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/${owner}/${ARCH}-my-device-information" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: my_device_information
+          file: my_device_information/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ steps.img.outputs.version }}
+            ${{ steps.img.outputs.name }}:latest
