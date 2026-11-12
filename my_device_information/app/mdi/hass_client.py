@@ -97,6 +97,19 @@ class HAClient:
         except aiohttp.ClientError as err:
             raise HAError(f"GET {path}: {err}") from err
 
+    async def call_service(self, domain: str, service: str, data: dict[str, Any]) -> None:
+        """POST /api/services/<domain>/<service>."""
+        if not self.token:
+            raise HAError("No access token.")
+        headers = {"Authorization": f"Bearer {self.token}"}
+        path = f"/api/services/{domain}/{service}"
+        try:
+            async with self._session.post(self.rest_base + path, json=data, headers=headers) as resp:
+                if resp.status not in (200, 201):
+                    raise HAError(f"{domain}.{service} returned HTTP {resp.status}")
+        except aiohttp.ClientError as err:
+            raise HAError(f"{domain}.{service}: {err}") from err
+
     async def supervisor(self, path: str) -> Any:
         """GET a Supervisor API path; returns its 'data' payload."""
         if not self.has_supervisor:

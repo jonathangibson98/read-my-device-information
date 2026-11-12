@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "include_services": False,
     "exclude_domains": "",
     "auto_refresh_hours": 0,
+    "mqtt_sensor": False,
 }
 REDACTION_LEVELS = ("none", "standard", "strict")
 KINDS = ("overview", "full", "json")
@@ -49,7 +50,7 @@ def clamp_int(value: Any, lo: int, hi: int, fallback: int) -> int:
 def _coerce(options: dict[str, Any]) -> dict[str, Any]:
     out = {**DEFAULTS, **{k: v for k, v in options.items() if k in DEFAULTS and v is not None}}
     for key in ("keep_history", "include_attributes", "include_configuration",
-                "include_logs", "include_services"):
+                "include_logs", "include_services", "mqtt_sensor"):
         out[key] = _as_bool(out[key])
     for key, lo, hi in (
         ("log_lines", 10, 500),
@@ -212,6 +213,13 @@ class Runtime:
         resolved = target.resolve()
         resolved.relative_to(loc.path.resolve())  # raises ValueError if it escapes
         return resolved
+
+    def mqtt_enabled(self, prefs: dict[str, Any] | None = None) -> bool:
+        """Publish Full as an MQTT sensor. The web page's choice wins over the add-on option."""
+        saved = (self.prefs if prefs is None else prefs).get("mqtt")
+        if isinstance(saved, dict) and "enabled" in saved:
+            return _as_bool(saved["enabled"])
+        return bool(self.options["mqtt_sensor"])
 
     def auto_refresh_hours(self) -> int:
         """Live schedule: the web page's choice wins over the add-on / .env default."""

@@ -13,6 +13,7 @@ from aiohttp import web
 
 from . import NAME, VERSION
 from .exporter import ExportManager, NoFilesSelected
+from . import mqtt_sensor
 from .hass_client import HAError
 from .settings import (
     KINDS,
@@ -64,6 +65,12 @@ def _status(rt: Runtime, mgr: ExportManager) -> dict[str, Any]:
             "history_keep": o["history_keep"],
         },
         "files_config": rt.file_settings(),
+        "mqtt": {
+            "enabled": rt.mqtt_enabled(),
+            "default": o["mqtt_sensor"],
+            "entity_id": mqtt_sensor.ENTITY_ID,
+            "attribute": mqtt_sensor.ATTRIBUTE,
+        },
         "extra": {**extra, "folder": extra_folder},
         "auto": {
             "hours": hours,
@@ -212,6 +219,8 @@ def _validate_prefs(rt: Runtime, prefs: dict[str, Any]) -> None:
     files = rt.file_settings(prefs)
     if not any(f["enabled"] for f in files.values()):
         raise ValueError("Pick at least one file to create.")
+    if rt.mqtt_enabled(prefs) and not files["full"]["enabled"]:
+        raise ValueError("The MQTT sensor publishes the Full file. Switch Full on, or turn the sensor off.")
     if any(f["enabled"] and f["copy"] for f in files.values()):
         loc = rt.locations.get(extra["location"])
         if loc is None:
@@ -248,6 +257,11 @@ async def save_settings(request: web.Request) -> web.Response:
             if loc and loc not in rt.locations:
                 raise ValueError("Unknown location for the second copy")
             prefs["extra"] = {"location": loc, "subfolder": clean_subfolder(str(extra.get("subfolder") or ""))}
+        if "mqtt" in body:
+            mq = body["mqtt"]
+            if not isinstance(mq, dict) or "enabled" not in mq:
+                raise ValueError("Invalid request")
+            prefs["mqtt"] = {"enabled": bool(mq["enabled"])}
         if "auto_refresh_hours" in body:
             hours = body["auto_refresh_hours"]
             if hours is None:

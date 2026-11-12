@@ -15,6 +15,7 @@ import aiohttp
 
 from . import NAME, VERSION
 from .collector import collect
+from . import mqtt_sensor
 from .hass_client import HAClient, HAError
 from .redact import Redactor
 from .render import estimate_tokens, render
@@ -121,18 +122,46 @@ class ExportManager:
             return None, [f"Second copy skipped: \u201c{loc.label}\u201d is not writable."]
         return extra, []
 
+    def _client(self, session: aiohttp.ClientSession) -> HAClient:
+        return HAClient(
+            session,
+            rest_base=self.rt.rest_base,
+            ws_url=self.rt.ws_url,
+            token=self.rt.token,
+            supervisor_base=self.rt.supervisor_base,
+            supervisor_token=self.rt.supervisor_token,
+        )
+
     async def _collect(self, level: str, opts: dict[str, Any]) -> dict[str, Any]:
         timeout = aiohttp.ClientTimeout(total=300, connect=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            client = HAClient(
-                session,
-                rest_base=self.rt.rest_base,
-                ws_url=self.rt.ws_url,
-                token=self.rt.token,
-                supervisor_base=self.rt.supervisor_base,
-                supervisor_token=self.rt.supervisor_token,
-            )
+            client = self._client(session)
             return await collect(client, {**opts, "redaction": level}, self.rt.config_dir, Redactor(level))
+
+    async def _mqtt(self, plan: list[dict[str, Any]], files: dict[str, Any], generated_at: str) -> tuple[dict[str, Any] | None, list[str]]:
+        """Create, update or remove the MQTT sensor. Never fails the run: problems become notes."""
+        was_published = bool((self.latest or {}).get("mqtt"))
+        wanted = self.rt.mqtt_enabled()
+        full = files.get("full")
+        if wanted and full is None:
+            return None, ["MQTT sensor skipped: switch the Full file on to publish it."]
+        if not wanted and not was_published:
+            return None, []
+        timeout = aiohttp.ClientTimeout(total=120, connect=15)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                client = self._client(session)
+                if not wanted:
+                    await mqtt_sensor.remove(client)
+                    return None, []
+                text = await asyncio.to_thread(Path(full["path"]).read_text, encoding="utf-8")
+                await mqtt_sensor.publish(client, text, full, generated_at)
+        except (HAError, OSError) as err:
+            _LOGGER.error("MQTT sensor failed: %s", err)
+            # Keep what we knew, so a failed removal is retried on the next run.
+            return (self.latest or {}).get("mqtt"), [f"MQTT sensor failed: {err}"]
+        return {"entity_id": mqtt_sensor.ENTITY_ID, "attribute": mqtt_sensor.ATTRIBUTE,
+                "bytes": full["bytes"], "published_at": generated_at}, []
 
     async def generate(self, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         async with self._lock:
@@ -157,13 +186,17 @@ class ExportManager:
         files = await asyncio.to_thread(
             self._write, plan, datasets, out_dir, extra_dir, eff["keep_history"], eff["history_keep"]
         )
+        generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        mqtt_info, mqtt_notes = await self._mqtt(plan, files, generated_at)
+        notes = notes + mqtt_notes
         first = datasets[plan[0]["level"]]
         errors: list[str] = []
         for data in datasets.values():
             errors.extend((data.get("meta") or {}).get("collection_errors", []))
         levels = {p["level"] for p in plan}
         self.latest = {
-            "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "generated_at": generated_at,
+            "mqtt": mqtt_info,
             "folder": str(out_dir),
             "location": eff["location"],
             "subfolder": eff["subfolder"],
