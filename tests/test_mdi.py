@@ -715,6 +715,20 @@ class MqttSensorTests(unittest.TestCase):
             self.assertTrue(any("MQTT sensor failed" in e and "MQTT integration" in e for e in info["errors"]))
             self.assertIsNone(info["mqtt"])
 
+    def test_no_size_limit_on_the_content_attribute(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rt, mgr, client = fresh_mqtt(tmp, mqtt_sensor=True)
+            run(mgr.generate())
+            path = rt.output_dir() / FU
+            big = path.read_text(encoding="utf-8") + ("\u00e9 line of text\n" * 300_000)  # ~5 MB
+            path.write_text(big, encoding="utf-8")
+            client.calls.clear()
+            from mdi import mqtt_sensor
+            run(mqtt_sensor.publish(client, big, {"bytes": len(big.encode())}, "2026-11-12T00:00:00+00:00"))
+            attrs = json.loads([c[2]["payload"] for c in client.calls if c[2]["topic"].endswith("/attributes")][0])
+            self.assertGreater(len(big.encode("utf-8")), 4_000_000)
+            self.assertEqual(attrs["content"], big)
+
     def test_home_assistant_config_folder_is_a_save_location(self):
         old = dict(os.environ)
         try:
