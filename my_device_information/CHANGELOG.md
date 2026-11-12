@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+- **Choose your files.** Switch Overview, Full and Data (JSON) on or off, each with its own
+  masking (default, standard, strict or none).
+- **Second place.** Tick *Also save a copy* on any file to write it to a separate location and
+  folder as well. The copy has the same masking as the file.
+- **Automatic updates on the web page.** Pick an interval (hourly to weekly) and see when the
+  next update is due. Changes apply immediately, no restart. The add-on option is now just the default.
+- **History size.** Choose how many dated copies of each file to keep (0 = keep all). The oldest are
+  deleted after each run. New add-on option `history_keep` (default 20).
+- Create snapshot now saves your selection first, so automatic runs match what you see.
+
 ## 1.0.0
 - Renamed from "AI Context Export" to **My Device Information**.
 - Now a Home Assistant add-on with a sidebar page, plus a Docker / Docker Compose version.

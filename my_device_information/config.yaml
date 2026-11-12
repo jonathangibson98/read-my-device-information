@@ -1,5 +1,5 @@
 name: My Device Information
-version: "1.0.0"
+version: "1.1.0"
 slug: my_device_information
 description: One click snapshot of your Home Assistant setup, ready to paste into an AI chat
 url: https://github.com/your-name/ha-my-device-information
@@ -25,6 +25,7 @@ options:
   save_location: share
   save_subfolder: my_device_information
   keep_history: false
+  history_keep: 20
   redaction: standard
   include_attributes: true
   include_configuration: true
@@ -37,6 +38,7 @@ schema:
   save_location: list(share|media|addon_config)
   save_subfolder: str?
   keep_history: bool
+  history_keep: int(0,1000)
   redaction: list(none|standard|strict)
   include_attributes: bool
   include_configuration: bool

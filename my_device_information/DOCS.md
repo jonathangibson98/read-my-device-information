@@ -3,9 +3,25 @@
 ## Use
 
 1. Start the add-on and open **My Device Information** from the sidebar.
-2. Press **Create snapshot**.
+2. Choose which files to create (see below), then press **Create snapshot**.
 3. Under **Your files**, use **Copy** on the Overview and paste it into your AI chat. If the AI
    needs more, paste the Full edition or the part you need.
+
+## Choosing the files and their masking
+
+Under **Create a snapshot** each file has its own card:
+
+- **Tick box:** create this file or skip it. At least one must stay on.
+- **Masking:** *Default* (follows the add-on option), *Standard*, *Strict* or *None*. You can,
+  for example, keep Overview on *Strict* to paste into a public forum and Data (JSON) on *None*
+  for your own tools.
+- **Also save a copy in a second place:** also writes that file to a separate location (see
+  below). Pick the place and sub-folder in the box that appears. Copies are overwritten each run
+  and have no history.
+
+**Create snapshot** saves these choices first, so automatic updates use the same ones.
+**Save selection** saves them without running. Each different masking level needs its own pass
+over Home Assistant, so mixing levels makes a run take longer.
 
 ## Where the files are saved
 
@@ -21,8 +37,19 @@ Under **Where the files are saved** pick a location and an optional sub-folder, 
 Your choice overrides the defaults on the Configuration tab until you press **Back to default**.
 **Save as…** next to a file lets you put a copy anywhere on the device you are browsing from.
 
-Files are overwritten on each run. Turn on *Keep a dated copy of every run* to also write
-timestamped copies into a `history` folder.
+Files are overwritten on each run. Turn on *Also keep a dated copy of every run* to also write
+timestamped copies into a `history` folder, and set **Dated copies to keep for each file**
+(default 20, 0 = keep all). After each run the oldest copies beyond that number are deleted, per
+file type. Only files with this add-on's dated names are ever removed, and lowering the number
+deletes nothing until the next run.
+
+## Automatic updates
+
+Under **Automatic updates** pick how often the files are re-created (off, hourly up to weekly)
+and press **Save**. The page shows when the next update is due. It takes effect straight away,
+with no restart, and uses the files, masking and places you saved. If a run fails (for example
+Home Assistant is restarting) it tries again after 15 minutes at most. **Back to default** returns
+to the value on the Configuration tab.
 
 ## Options
 
@@ -30,14 +57,15 @@ timestamped copies into a `history` folder.
 |---|---|
 | Default save location / sub-folder | Used until you pick another place on the web page |
 | Keep a dated copy of every run | Adds timestamped copies under `history/` |
-| Privacy masking | `none`, `standard` (default) or `strict` |
+| Dated copies to keep | How many dated copies of each file stay in `history/` (0 = all, default 20) |
+| Default privacy masking | `none`, `standard` (default) or `strict`. Files set to *Default* on the web page use this |
 | Include entity attributes | Bigger full edition with every attribute |
 | Include YAML configuration files | Adds `configuration.yaml` and friends. `secrets.yaml` is never read |
 | Include recent warnings and errors | Groups the latest problems from the log |
 | Maximum log problems to list | 10 to 500 |
 | Include the list of available services | Every service per domain |
 | Exclude entity domains | For example `camera, media_player` |
-| Refresh automatically every N hours | 0 = off. Rewrites the files in the background |
+| Refresh automatically every N hours | 0 = off. Default for the web page's *Automatic updates* |
 
 ## Privacy
 
