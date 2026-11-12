@@ -1,7 +1,7 @@
 configuration:
   save_location:
     name: Default save location
-    description: Where the files are written. Share and Media are visible to Samba and the File editor. You can also change this from the add-on page at any time.
+    description: Where the files are written. Share, Media and the Home Assistant config folder (/config) are visible to the File editor. Pick a sub-folder to choose the exact path. You can also change this from the add-on page at any time.
   save_subfolder:
     name: Default sub-folder
     description: Folder inside the location above. Leave empty to save in the root of the location.
