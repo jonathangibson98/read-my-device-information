@@ -43,7 +43,8 @@ services:
     volumes:
       # WHERE THE FILES ARE SAVED: any folder on this machine.
       - ${OUTPUT_PATH:-./output}:/output
-      # Your Home Assistant config folder, read-only (optional, adds YAML files and more).
+      # Your Home Assistant config folder (optional, adds YAML files and more).
+      # Read-only is safest. Remove ":ro" if you also want to save the files into it.
       - ${HA_CONFIG_PATH:-./ha-config}:/config:ro
       # Remembers the save location you pick on the web page.
       - mdi-data:/data
