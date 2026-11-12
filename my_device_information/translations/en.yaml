@@ -1,1 +1,34 @@
-y
+configuration:
+  save_location:
+    name: Default save location
+    description: Where the files are written. Share and Media are visible to Samba and the File editor. You can also change this from the add-on page at any time.
+  save_subfolder:
+    name: Default sub-folder
+    description: Folder inside the location above. Leave empty to save in the root of the location.
+  keep_history:
+    name: Keep a dated copy of every run
+    description: Also writes timestamped copies into a "history" folder. Off means the files are overwritten each time.
+  redaction:
+    name: Privacy masking
+    description: Standard masks passwords, tokens, emails, MAC addresses, remote-access hostnames and exact coordinates. Strict also masks IP addresses, hostnames, serial numbers and person names. None masks nothing.
+  include_attributes:
+    name: Include entity attributes
+    description: Adds the extra attributes of every entity. Makes the full edition much larger.
+  include_configuration:
+    name: Include YAML configuration files
+    description: Adds configuration.yaml, automations.yaml and friends to the full edition. secrets.yaml is never read.
+  include_logs:
+    name: Include recent warnings and errors
+    description: Adds the latest distinct problems from the Home Assistant log.
+  log_lines:
+    name: Maximum log problems to list
+    description: How many distinct warnings and errors to include.
+  include_services:
+    name: Include the list of available services
+    description: Lists every service per domain. Can be long.
+  exclude_domains:
+    name: Exclude entity domains
+    description: "Comma separated, for example: camera, media_player"
+  auto_refresh_hours:
+    name: Refresh automatically every N hours
+    description: 0 turns automatic refresh off. Files are rewritten in the background.
