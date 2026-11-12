@@ -103,6 +103,14 @@ dialog pre{margin:0;padding:14px;overflow:auto;max-height:72vh;font:12.5px/1.45 
     <div class="row"><button id="saveauto">Save</button><button id="resetauto" hidden>Back to default</button><span id="automsg" class="muted"></span></div>
   </section>
 
+  <section id="mqttsec">
+    <h2>MQTT sensor</h2>
+    <p class="muted">Publishes the whole Full file as a sensor in Home Assistant, so templates and dashboards can read it. The sensor's state is the time of the last snapshot and the text is in its <code id="mqattr"></code> attribute. Needs the MQTT integration. It is updated every time a snapshot is created.</p>
+    <label class="check"><input type="checkbox" id="mqon"> Publish Full as an MQTT sensor</label>
+    <p class="muted" id="mqinfo"></p>
+    <div class="row"><button id="savemq">Save</button><span id="mqmsg" class="muted"></span></div>
+  </section>
+
   <section id="files" hidden>
     <h2>Your files</h2>
     <p class="muted" id="stamp"></p>
@@ -214,11 +222,23 @@ function autoInfo(s) {
   $("autoinfo").textContent = info;
 }
 
+function buildMqtt(s) {
+  $("mqon").checked = s.mqtt.enabled;
+  $("mqattr").textContent = s.mqtt.attribute;
+  const m = s.latest && s.latest.mqtt;
+  let info = "Entity: " + s.mqtt.entity_id + ". ";
+  if (m) info += "Last published " + new Date(m.published_at).toLocaleString() + " (" + kb(m.bytes) + "). ";
+  else if (s.mqtt.enabled) info += "It appears after the next snapshot. ";
+  if (!s.mqtt.enabled && m) info += "It is removed from Home Assistant after the next snapshot. ";
+  info += "Large attributes are not kept in the history database, see the add-on docs.";
+  $("mqinfo").textContent = info;
+}
 function render(s, only) {  // only: "files" | "auto" | "where" re-renders just that form, so unsaved edits elsewhere survive
   st = s;
   $("ver").textContent = "Version " + s.version + (s.mode === "addon" ? "" : " · Docker");
   if (!only || only === "files") { buildKinds(s); buildExtra(s); }
   if (!only || only === "auto") buildAuto(s);
+  if (!only || only === "mqtt") buildMqtt(s);
   if (!only || only === "where") {
     const loc = $("loc"); loc.innerHTML = "";
     s.locations.forEach((l) => { const o = document.createElement("option"); o.value = l.id; o.textContent = l.label + (l.writable ? "" : " (not writable)"); o.disabled = !l.writable; loc.appendChild(o); });
@@ -281,6 +301,10 @@ $("go").onclick = async () => {
 $("savefiles").onclick = async () => {
   try { render(await api("api/settings", filesPayload()), "files"); say("msg", true, "Selection saved."); }
   catch (e) { say("msg", false, e.message); }
+};
+$("savemq").onclick = async () => {
+  try { render(await api("api/settings", {mqtt: {enabled: $("mqon").checked}}), "mqtt"); say("mqmsg", true, "Saved. Press Create snapshot to apply it."); }
+  catch (e) { say("mqmsg", false, e.message); }
 };
 $("saveauto").onclick = async () => {
   try { render(await api("api/settings", {auto_refresh_hours: Number($("auto").value)}), "auto"); say("automsg", true, "Saved."); }
