@@ -200,13 +200,13 @@ class ExportTests(unittest.TestCase):
             info = run(mgr.generate({"redaction": "strict"}))
             out = Path(tmp) / "media" / "My Snapshots"
             names = sorted(p.name for p in out.iterdir())
-            self.assertEqual(names, ["My Device Information - Data.json", "My Device Information - Full.md",
-                                     "My Device Information - Overview.md", "history"])
+            self.assertEqual(names, ["My Device Information - Data.json", "My Device Information - Full.txt",
+                                     "My Device Information - Overview.txt", "history"])
             self.assertEqual(len(list((out / "history").iterdir())), 3)
             self.assertEqual(info["folder"], str(out.resolve()))
             self.assertFalse(list((Path(tmp) / "share").iterdir()))  # nothing written to the unchosen place
-            self.assertNotIn("SECRETSECRET", (out / "My Device Information - Full.md").read_text())
-            self.assertEqual(os.stat(out / "My Device Information - Overview.md").st_mode & 0o777, 0o600)
+            self.assertNotIn("SECRETSECRET", (out / "My Device Information - Full.txt").read_text())
+            self.assertEqual(os.stat(out / "My Device Information - Overview.txt").st_mode & 0o777, 0o600)
             name, text = mgr.read("overview")
             self.assertTrue(text.startswith("# My Device Information"))
             self.assertIsNone(mgr.read("nope"))
@@ -226,7 +226,7 @@ def fresh(tmp, **opt):
     exporter.HAClient = lambda *a, **k: FakeClient()
     return rt, exporter.ExportManager(rt)
 
-OV, FU, JS = ("My Device Information - Overview.md", "My Device Information - Full.md", "My Device Information - Data.json")
+OV, FU, JS = ("My Device Information - Overview.txt", "My Device Information - Full.txt", "My Device Information - Data.json")
 
 class PerFileTests(unittest.TestCase):
     def test_only_chosen_files_each_with_its_own_masking(self):
@@ -323,7 +323,7 @@ def history_names(rt, kind_label):
 class HistoryTests(unittest.TestCase):
     def _seed(self, rt, label, days):
         h = rt.output_dir() / "history"; h.mkdir(parents=True, exist_ok=True)
-        ext = "json" if label == "Data" else "md"
+        ext = "json" if label == "Data" else "txt"
         for d in days:
             (h / f"My Device Information - {label} 2026-01-{d:02d}_000000.{ext}").write_text("old")
         return h
@@ -335,16 +335,16 @@ class HistoryTests(unittest.TestCase):
             h = self._seed(rt, "Overview", range(1, 7))
             self._seed(rt, "Full", range(1, 7))
             (h / "notes.txt").write_text("mine")
-            (h / "My Device Information - Overview backup.md").write_text("mine too")
+            (h / "My Device Information - Overview backup.txt").write_text("mine too")
             run(mgr.generate())
             ov = [n for n in history_names(rt, "Overview") if "backup" not in n]
             self.assertEqual(len(ov), 3)
-            self.assertEqual(ov[:2], ["My Device Information - Overview 2026-01-05_000000.md",
-                                      "My Device Information - Overview 2026-01-06_000000.md"])
+            self.assertEqual(ov[:2], ["My Device Information - Overview 2026-01-05_000000.txt",
+                                      "My Device Information - Overview 2026-01-06_000000.txt"])
             self.assertEqual(len(history_names(rt, "Full")), 3)       # each file type is counted separately
             self.assertEqual(len(history_names(rt, "Data")), 1)
             self.assertTrue((h / "notes.txt").exists())                # never touches what it did not write
-            self.assertTrue((h / "My Device Information - Overview backup.md").exists())
+            self.assertTrue((h / "My Device Information - Overview backup.txt").exists())
 
     def test_zero_keeps_everything(self):
         with tempfile.TemporaryDirectory() as tmp:
