@@ -2,4 +2,4 @@
 
 NAME = "My Device Information"
 SLUG = "my_device_information"
-VERSION = "1.0.0"
+VERSION = "1.1.0"

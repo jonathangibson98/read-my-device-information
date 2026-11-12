@@ -15,6 +15,7 @@ DEFAULTS: dict[str, Any] = {
     "save_location": "",
     "save_subfolder": SLUG,
     "keep_history": False,
+    "history_keep": 20,
     "redaction": "standard",
     "include_attributes": True,
     "include_configuration": True,
@@ -25,6 +26,10 @@ DEFAULTS: dict[str, Any] = {
     "auto_refresh_hours": 0,
 }
 REDACTION_LEVELS = ("none", "standard", "strict")
+KINDS = ("overview", "full", "json")
+FILE_LEVEL_CHOICES = ("default",) + REDACTION_LEVELS  # "default" = follow the global option
+MAX_HISTORY_KEEP = 1000
+MAX_AUTO_HOURS = 168
 _SUBFOLDER_PART = re.compile(r"^[\w][\w .\-]*$")
 
 
@@ -34,16 +39,24 @@ def _as_bool(value: Any) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
+def clamp_int(value: Any, lo: int, hi: int, fallback: int) -> int:
+    try:
+        return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _coerce(options: dict[str, Any]) -> dict[str, Any]:
     out = {**DEFAULTS, **{k: v for k, v in options.items() if k in DEFAULTS and v is not None}}
     for key in ("keep_history", "include_attributes", "include_configuration",
                 "include_logs", "include_services"):
         out[key] = _as_bool(out[key])
-    for key, lo, hi in (("log_lines", 10, 500), ("auto_refresh_hours", 0, 168)):
-        try:
-            out[key] = max(lo, min(hi, int(out[key])))
-        except (TypeError, ValueError):
-            out[key] = DEFAULTS[key]
+    for key, lo, hi in (
+        ("log_lines", 10, 500),
+        ("auto_refresh_hours", 0, MAX_AUTO_HOURS),
+        ("history_keep", 0, MAX_HISTORY_KEEP),
+    ):
+        out[key] = clamp_int(out[key], lo, hi, DEFAULTS[key])
     if out["redaction"] not in REDACTION_LEVELS:
         out["redaction"] = "standard"
     out["exclude_domains"] = str(out["exclude_domains"] or "")
@@ -65,6 +78,27 @@ def clean_subfolder(value: str) -> str:
                 "underscores, and cannot use '..'."
             )
     return "/".join(parts)
+
+
+def normalize_files(raw: Any, current: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Merge a (possibly partial) per-file settings request into the current settings."""
+    if not isinstance(raw, dict):
+        raise ValueError("Invalid file settings")
+    out = {kind: dict(cfg) for kind, cfg in current.items()}
+    for kind, cfg in raw.items():
+        if kind not in KINDS:
+            raise ValueError(f"Unknown file \u201c{kind}\u201d")
+        if not isinstance(cfg, dict):
+            raise ValueError("Invalid file settings")
+        if "enabled" in cfg:
+            out[kind]["enabled"] = _as_bool(cfg["enabled"])
+        if "copy" in cfg:
+            out[kind]["copy"] = _as_bool(cfg["copy"])
+        if "redaction" in cfg:
+            if cfg["redaction"] not in FILE_LEVEL_CHOICES:
+                raise ValueError("Unknown privacy level")
+            out[kind]["redaction"] = cfg["redaction"]
+    return out
 
 
 @dataclass
@@ -95,6 +129,7 @@ class Runtime:
     web_password: str
     run_once: bool
     selection: dict[str, Any] = field(default_factory=dict)
+    prefs: dict[str, Any] = field(default_factory=dict)
 
     # -- saved choice made in the web page ------------------------------------
     @property
@@ -122,6 +157,70 @@ class Runtime:
         except OSError:
             pass
 
+    # -- other web settings: which files, masking per file, second place, schedule ----
+    @property
+    def _prefs_file(self) -> Path:
+        return self.data_dir / "prefs.json"
+
+    def load_prefs(self) -> None:
+        try:
+            data = json.loads(self._prefs_file.read_text(encoding="utf-8"))
+            self.prefs = data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            self.prefs = {}
+
+    def save_prefs(self, prefs: dict[str, Any]) -> None:
+        """Write to disk first; raises OSError so the page can say the save did not stick."""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        tmp = self._prefs_file.with_name("prefs.json.tmp")
+        tmp.write_text(json.dumps(prefs), encoding="utf-8")
+        tmp.replace(self._prefs_file)
+        self.prefs = prefs
+
+    def file_settings(self, prefs: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+        """Per file: enabled, masking ('default' follows the global option) and second copy."""
+        saved = (self.prefs if prefs is None else prefs).get("files")
+        saved = saved if isinstance(saved, dict) else {}
+        out: dict[str, dict[str, Any]] = {}
+        for kind in KINDS:
+            cfg = saved.get(kind) if isinstance(saved.get(kind), dict) else {}
+            level = cfg.get("redaction", "default")
+            out[kind] = {
+                "enabled": _as_bool(cfg.get("enabled", True)),
+                "redaction": level if level in FILE_LEVEL_CHOICES else "default",
+                "copy": _as_bool(cfg.get("copy", False)),
+            }
+        return out
+
+    def extra_settings(self, prefs: dict[str, Any] | None = None) -> dict[str, str]:
+        """The optional second place that gets a copy of the files that ask for one."""
+        saved = (self.prefs if prefs is None else prefs).get("extra")
+        saved = saved if isinstance(saved, dict) else {}
+        return {
+            "location": str(saved.get("location") or ""),
+            "subfolder": str(saved.get("subfolder", DEFAULTS["save_subfolder"]) or ""),
+        }
+
+    def extra_dir(self, prefs: dict[str, Any] | None = None) -> Path | None:
+        """Resolved second folder, None if no place is chosen. Raises ValueError if unsafe."""
+        extra = self.extra_settings(prefs)
+        loc = self.locations.get(extra["location"])
+        if loc is None:
+            return None
+        sub = clean_subfolder(extra["subfolder"])
+        target = (loc.path / sub) if sub else loc.path
+        resolved = target.resolve()
+        resolved.relative_to(loc.path.resolve())  # raises ValueError if it escapes
+        return resolved
+
+    def auto_refresh_hours(self) -> int:
+        """Live schedule: the web page's choice wins over the add-on / .env default."""
+        fallback = self.options["auto_refresh_hours"]
+        value = self.prefs.get("auto_refresh_hours")
+        if value is None:
+            return fallback
+        return clamp_int(value, 0, MAX_AUTO_HOURS, fallback)
+
     # -- where files go ----------------------------------------------------------
     def effective(self) -> dict[str, Any]:
         """Location id, sub-folder and history flag currently in force."""
@@ -134,7 +233,11 @@ class Runtime:
         except ValueError:
             sub = clean_subfolder(DEFAULTS["save_subfolder"])
         hist = self.selection.get("keep_history", self.options["keep_history"])
-        return {"location": loc, "subfolder": sub, "keep_history": bool(hist)}
+        keep = clamp_int(
+            self.selection.get("history_keep", self.options["history_keep"]),
+            0, MAX_HISTORY_KEEP, DEFAULTS["history_keep"],
+        )
+        return {"location": loc, "subfolder": sub, "keep_history": bool(hist), "history_keep": keep}
 
     def output_dir(self) -> Path:
         eff = self.effective()
@@ -215,4 +318,5 @@ def load() -> Runtime:
             run_once=os.environ.get("RUN_MODE", "server").lower() == "once",
         )
     rt.load_selection()
+    rt.load_prefs()
     return rt

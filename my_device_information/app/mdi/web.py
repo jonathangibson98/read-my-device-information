@@ -12,9 +12,17 @@ from urllib.parse import quote
 from aiohttp import web
 
 from . import NAME, VERSION
-from .exporter import KINDS, ExportManager
+from .exporter import ExportManager, NoFilesSelected
 from .hass_client import HAError
-from .settings import REDACTION_LEVELS, Runtime, clean_subfolder
+from .settings import (
+    KINDS,
+    MAX_AUTO_HOURS,
+    MAX_HISTORY_KEEP,
+    REDACTION_LEVELS,
+    Runtime,
+    clean_subfolder,
+    normalize_files,
+)
 
 _LOGGER = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).parent / "static"
@@ -29,6 +37,13 @@ def _status(rt: Runtime, mgr: ExportManager) -> dict[str, Any]:
     except (ValueError, OSError):
         folder = None
     o = rt.options
+    extra = rt.extra_settings()
+    try:
+        extra_folder = str(rt.extra_dir()) if extra["location"] else None
+    except (ValueError, OSError):
+        extra_folder = None
+    hours = rt.auto_refresh_hours()
+    due = mgr.next_due(hours)
     return {
         "name": NAME,
         "version": VERSION,
@@ -46,6 +61,15 @@ def _status(rt: Runtime, mgr: ExportManager) -> dict[str, Any]:
             "include_configuration": o["include_configuration"],
             "include_logs": o["include_logs"],
             "auto_refresh_hours": o["auto_refresh_hours"],
+            "history_keep": o["history_keep"],
+        },
+        "files_config": rt.file_settings(),
+        "extra": {**extra, "folder": extra_folder},
+        "auto": {
+            "hours": hours,
+            "default_hours": o["auto_refresh_hours"],
+            "overridden": "auto_refresh_hours" in rt.prefs,
+            "next_run": due.isoformat(timespec="seconds") if due else None,
         },
         "config_folder_available": bool(rt.config_dir and rt.config_dir.is_dir()),
         "latest": mgr.latest,
@@ -105,6 +129,8 @@ async def generate(request: web.Request) -> web.Response:
         overrides["redaction"] = level
     try:
         await mgr.generate(overrides)
+    except NoFilesSelected as err:
+        return _json_error(str(err), 400)
     except HAError as err:
         return _json_error(str(err), 502)
     except (ValueError, PermissionError, OSError) as err:
@@ -150,8 +176,19 @@ async def set_location(request: web.Request) -> web.Response:
         return _json_error(
             f"“{rt.locations[loc].label}” is not writable here. Check the folder mapping.", 400
         )
+    try:
+        keep = int(body.get("history_keep", rt.effective()["history_keep"]))
+    except (TypeError, ValueError):
+        keep = -1
+    if not 0 <= keep <= MAX_HISTORY_KEEP:
+        return _json_error(f"Enter how many dated copies to keep: a number from 0 to {MAX_HISTORY_KEEP}.", 400)
     previous = dict(rt.selection)
-    rt.save_selection({"location": loc, "subfolder": sub, "keep_history": bool(body.get("keep_history"))})
+    rt.save_selection({
+        "location": loc,
+        "subfolder": sub,
+        "keep_history": bool(body.get("keep_history")),
+        "history_keep": keep,
+    })
     try:
         rt.output_dir()
     except (ValueError, OSError):
@@ -166,6 +203,73 @@ async def reset_location(request: web.Request) -> web.Response:
     return web.json_response(_status(rt, request.app["mgr"]))
 
 
+def _validate_prefs(rt: Runtime, prefs: dict[str, Any]) -> None:
+    """Cross-checks that need the whole picture. Raises ValueError with a plain message."""
+    extra = rt.extra_settings(prefs)
+    if extra["location"] and extra["location"] not in rt.locations:
+        raise ValueError("Unknown location for the second copy")
+    clean_subfolder(extra["subfolder"])
+    files = rt.file_settings(prefs)
+    if not any(f["enabled"] for f in files.values()):
+        raise ValueError("Pick at least one file to create.")
+    if any(f["enabled"] and f["copy"] for f in files.values()):
+        loc = rt.locations.get(extra["location"])
+        if loc is None:
+            raise ValueError("Pick a place for the second copy, or untick \u201cAlso save a copy\u201d.")
+        if not loc.writable:
+            raise ValueError(f"\u201c{loc.label}\u201d is not writable here. Check the folder mapping.")
+        try:
+            same = rt.extra_dir(prefs) == rt.output_dir()
+        except OSError:
+            raise ValueError("That folder is not allowed.") from None
+        if same:
+            raise ValueError("The second copy would go to the same folder as the main files. Pick a different place.")
+
+
+async def save_settings(request: web.Request) -> web.Response:
+    """Which files, masking per file, the second place, and the automatic schedule."""
+    rt: Runtime = request.app["rt"]
+    mgr: ExportManager = request.app["mgr"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return _json_error("Invalid request", 400)
+    if not isinstance(body, dict):
+        return _json_error("Invalid request", 400)
+    prefs = dict(rt.prefs)
+    try:
+        if "files" in body:
+            prefs["files"] = normalize_files(body["files"], rt.file_settings())
+        if "extra" in body:
+            extra = body["extra"]
+            if not isinstance(extra, dict):
+                raise ValueError("Invalid request")
+            loc = str(extra.get("location") or "")
+            if loc and loc not in rt.locations:
+                raise ValueError("Unknown location for the second copy")
+            prefs["extra"] = {"location": loc, "subfolder": clean_subfolder(str(extra.get("subfolder") or ""))}
+        if "auto_refresh_hours" in body:
+            hours = body["auto_refresh_hours"]
+            if hours is None:
+                prefs.pop("auto_refresh_hours", None)  # back to the add-on / .env default
+            else:
+                try:
+                    hours = int(hours)
+                except (TypeError, ValueError):
+                    hours = -1
+                if isinstance(body["auto_refresh_hours"], bool) or not 0 <= hours <= MAX_AUTO_HOURS:
+                    raise ValueError(f"Automatic updates: choose 0 (off) to {MAX_AUTO_HOURS} hours.")
+                prefs["auto_refresh_hours"] = hours
+        _validate_prefs(rt, prefs)
+    except ValueError as err:
+        return _json_error(str(err), 400)
+    try:
+        rt.save_prefs(prefs)
+    except OSError as err:
+        return _json_error(f"Could not store the settings: {err}", 500)
+    return web.json_response(_status(rt, mgr))
+
+
 def build_app(rt: Runtime, mgr: ExportManager) -> web.Application:
     app = web.Application(middlewares=[guard], client_max_size=1024**2)
     app["rt"] = rt
@@ -174,6 +278,7 @@ def build_app(rt: Runtime, mgr: ExportManager) -> web.Application:
     app.router.add_get("/api/status", status)
     app.router.add_post("/api/generate", generate)
     app.router.add_get("/api/file/{kind}", file)
+    app.router.add_post("/api/settings", save_settings)
     app.router.add_post("/api/location", set_location)
     app.router.add_post("/api/location/reset", reset_location)
     app.router.add_static("/assets/", WEB_DIR / "assets", follow_symlinks=False)
