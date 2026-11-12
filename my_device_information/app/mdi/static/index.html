@@ -108,6 +108,14 @@ dialog pre{margin:0;padding:14px;overflow:auto;max-height:72vh;font:12.5px/1.45 
     <p class="muted">Publishes the whole Full file as a sensor in Home Assistant, so templates and dashboards can read it. The sensor's state is the time of the last snapshot and the text is in its <code id="mqattr"></code> attribute. Needs the MQTT integration. It is updated every time a snapshot is created.</p>
     <label class="check"><input type="checkbox" id="mqon"> Publish Full as an MQTT sensor</label>
     <p class="muted" id="mqinfo"></p>
+    <div id="mqrec" hidden>
+      <p class="muted">There is no size limit in this add-on: the sensor holds the whole text. Home Assistant's own history database refuses attributes over 16 KB and logs a warning about it. The live sensor is not affected. To stop the warning, add this to <code>configuration.yaml</code> (merge it into an existing <code>recorder:</code> section) and restart Home Assistant:</p>
+      <pre id="mqsnip">recorder:
+  exclude:
+    entities:
+      - sensor.my_device_information_full</pre>
+      <div class="row"><button id="copymq">Copy</button></div>
+    </div>
     <div class="row"><button id="savemq">Save</button><span id="mqmsg" class="muted"></span></div>
   </section>
 
@@ -230,8 +238,8 @@ function buildMqtt(s) {
   if (m) info += "Last published " + new Date(m.published_at).toLocaleString() + " (" + kb(m.bytes) + "). ";
   else if (s.mqtt.enabled) info += "It appears after the next snapshot. ";
   if (!s.mqtt.enabled && m) info += "It is removed from Home Assistant after the next snapshot. ";
-  info += "Large attributes are not kept in the history database, see the add-on docs.";
   $("mqinfo").textContent = info;
+  $("mqrec").hidden = !(s.mqtt.enabled || m);
 }
 function render(s, only) {  // only: "files" | "auto" | "where" re-renders just that form, so unsaved edits elsewhere survive
   st = s;
@@ -305,6 +313,10 @@ $("savefiles").onclick = async () => {
 $("savemq").onclick = async () => {
   try { render(await api("api/settings", {mqtt: {enabled: $("mqon").checked}}), "mqtt"); say("mqmsg", true, "Saved. Press Create snapshot to apply it."); }
   catch (e) { say("mqmsg", false, e.message); }
+};
+$("copymq").onclick = async () => {
+  try { await navigator.clipboard.writeText($("mqsnip").textContent); toast("Copied."); }
+  catch (e) { toast("Select the text and copy it."); }
 };
 $("saveauto").onclick = async () => {
   try { render(await api("api/settings", {auto_refresh_hours: Number($("auto").value)}), "auto"); say("automsg", true, "Saved."); }
