@@ -1,0 +1,57 @@
+# My Device Information (standalone)
+#   1. cp .env.example .env  and fill in HA_URL and HA_TOKEN
+#   2. docker compose up -d --build
+#   3. open http://localhost:8099
+name: my-device-information
+
+services:
+  my-device-information:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: my-device-information:1.0.0
+    container_name: my-device-information
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    environment:
+      TZ: ${TZ:-UTC}
+      HA_URL: ${HA_URL:?Set HA_URL in .env, for example http://192.168.1.10:8123}
+      HA_TOKEN: ${HA_TOKEN:?Set HA_TOKEN in .env (a long-lived access token)}
+      HA_CONFIG_DIR: /config
+      OUTPUT_DIR: /output
+      EXTRA_OUTPUT_DIRS: ${EXTRA_OUTPUT_DIRS:-}
+      WEB_PASSWORD: ${WEB_PASSWORD:-}
+      SAVE_SUBFOLDER: ${SAVE_SUBFOLDER-my_device_information}
+      KEEP_HISTORY: ${KEEP_HISTORY:-false}
+      REDACTION: ${REDACTION:-standard}
+      INCLUDE_ATTRIBUTES: ${INCLUDE_ATTRIBUTES:-true}
+      INCLUDE_CONFIGURATION: ${INCLUDE_CONFIGURATION:-true}
+      INCLUDE_LOGS: ${INCLUDE_LOGS:-true}
+      LOG_LINES: ${LOG_LINES:-40}
+      INCLUDE_SERVICES: ${INCLUDE_SERVICES:-false}
+      EXCLUDE_DOMAINS: ${EXCLUDE_DOMAINS:-}
+      AUTO_REFRESH_HOURS: ${AUTO_REFRESH_HOURS:-0}
+    ports:
+      # Localhost only by default. Change to "8099:8099" to reach it from other devices
+      # (then set WEB_PASSWORD).
+      - "127.0.0.1:${PORT:-8099}:8099"
+    volumes:
+      # WHERE THE FILES ARE SAVED: any folder on this machine.
+      - ${OUTPUT_PATH:-./output}:/output
+      # Your Home Assistant config folder, read-only (optional, adds YAML files and more).
+      - ${HA_CONFIG_PATH:-./ha-config}:/config:ro
+      # Remembers the save location you pick on the web page.
+      - mdi-data:/data
+    labels:
+      homepage.group: Home
+      homepage.name: My Device Information
+      homepage.icon: mdi-information-box-outline
+      homepage.href: http://localhost:8099
+      homepage.description: Snapshot of my Home Assistant setup for AI chats
+
+volumes:
+  mdi-data:
